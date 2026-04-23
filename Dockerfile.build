@@ -1,0 +1,24 @@
+# 备选：多阶段构建（需要能拉 golang 镜像，国内需配置镜像加速）
+# 用法: docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+
+FROM golang:1.23-alpine AS builder
+
+ENV GOPROXY=https://goproxy.cn,direct
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /go-tunnel-server ./cmd/server
+
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata
+
+COPY --from=builder /go-tunnel-server /usr/local/bin/go-tunnel-server
+
+EXPOSE 8080
+
+ENTRYPOINT ["go-tunnel-server"]
+CMD ["-addr", ":8080"]

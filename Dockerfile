@@ -1,22 +1,23 @@
-# Build stage
-FROM golang:1.23-alpine AS builder
+# ============================================================
+# 方式1（推荐）：宿主机已装 Go，deploy 脚本直接编译二进制
+#   使用 Dockerfile（单阶段，只 COPY 二进制进去）
+#   ./deploy
+#
+# 方式2（备选）：宿主机没有 Go，用 Docker 内编译
+#   使用 Dockerfile.build（多阶段，需要能拉 golang 镜像）
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# ============================================================
 
-ENV GOPROXY=https://goproxy.cn,direct
+# Pre-compile: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/go-tunnel-server ./cmd/server
+# Then: docker compose up -d
 
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /go-tunnel-server ./cmd/server
-
-# Run stage
 FROM alpine:3.19
 
 RUN apk add --no-cache ca-certificates tzdata
 
-COPY --from=builder /go-tunnel-server /usr/local/bin/go-tunnel-server
+COPY bin/go-tunnel-server /usr/local/bin/go-tunnel-server
 
 EXPOSE 8080
 
 ENTRYPOINT ["go-tunnel-server"]
+CMD ["-addr", ":8080"]

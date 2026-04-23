@@ -16,7 +16,13 @@ fi
 # 拉取最新代码
 git pull origin main
 
+# 编译二进制（需要 go 环境）
+echo "🔨 编译中 ..."
+mkdir -p bin
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/go-tunnel-server ./cmd/server
+
 # 构建并启动
+echo "🐳 构建镜像 ..."
 docker compose up -d --build
 
 echo ""
