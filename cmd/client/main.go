@@ -46,7 +46,7 @@ func main() {
 	if cfg.ServerURL == "" {
 		fmt.Println("🔧 首次使用，请配置服务端地址")
 		fmt.Println()
-		raw := inputString("🌐 服务器地址 (如 http://proxy.autowired.cn): ")
+		raw := inputString("🌐 服务器地址 (如 http://tunnel.example.com): ")
 		if raw == "" {
 			fmt.Println("❌ 地址不能为空")
 			os.Exit(1)
