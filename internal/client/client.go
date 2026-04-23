@@ -16,43 +16,46 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Client manages a single WebSocket tunnel connection.
 type Client struct {
-	serverURL string
-	port      int
-	prefix    string
-	domain    string
+	ServerURL string
+	Port      int
+	Prefix    string
+	Domain    string
 
-	conn   *websocket.Conn
+	conn    *websocket.Conn
 	writeMu sync.Mutex
+	closed  bool
+	closeMu sync.Mutex
 
-	pending   map[string]chan *protocol.Message
-	pendingMu sync.Mutex
+	onRegistered func(domain string)
+	registeredCh chan struct{}
 }
 
+// New creates a new tunnel client.
 func New(serverURL string, port int, prefix string) *Client {
 	return &Client{
-		serverURL: serverURL,
-		port:      port,
-		prefix:    prefix,
-		pending:   make(map[string]chan *protocol.Message),
+		ServerURL:    serverURL,
+		Port:         port,
+		Prefix:       prefix,
+		registeredCh: make(chan struct{}),
 	}
 }
 
-func (c *Client) Run() {
-	for {
-		err := c.connect()
-		if err != nil {
-			log.Printf("Connection error: %v, reconnecting in 5s...", err)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		log.Println("Disconnected, reconnecting in 5s...")
-		time.Sleep(5 * time.Second)
-	}
+// OnRegistered sets a callback fired when the server assigns a domain.
+func (c *Client) OnRegistered(cb func(domain string)) {
+	c.onRegistered = cb
 }
 
-func (c *Client) connect() error {
-	wsURL := strings.Replace(c.serverURL, "http://", "ws://", 1)
+// Registered returns a channel that's closed after successful registration.
+func (c *Client) Registered() <-chan struct{} {
+	return c.registeredCh
+}
+
+// Connect establishes the WebSocket connection and starts the read loop.
+// It blocks until the connection is lost, then returns the error.
+func (c *Client) Connect() error {
+	wsURL := strings.Replace(c.ServerURL, "http://", "ws://", 1)
 	wsURL = strings.Replace(wsURL, "https://", "wss://", 1)
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -60,13 +63,13 @@ func (c *Client) connect() error {
 		return fmt.Errorf("dial: %w", err)
 	}
 	c.conn = conn
-	defer conn.Close()
+	defer c.cleanup()
 
 	// Register
 	if err := c.send(protocol.Message{
 		Type:   protocol.TypeRegister,
-		Prefix: c.prefix,
-		Port:   c.port,
+		Prefix: c.Prefix,
+		Port:   c.Port,
 	}); err != nil {
 		return fmt.Errorf("register: %w", err)
 	}
@@ -90,8 +93,19 @@ func (c *Client) connect() error {
 
 		switch m.Type {
 		case protocol.TypeRegistered:
-			c.domain = m.Domain
-			fmt.Printf("\u2705 隧道已建立: %s \u2192 localhost:%d\n\n", m.Domain, c.port)
+			c.Domain = m.Domain
+			if idx := strings.Index(m.Domain, "."); idx > 0 {
+				c.Prefix = m.Domain[:idx]
+			}
+			select {
+			case <-c.registeredCh:
+				// already closed
+			default:
+				close(c.registeredCh)
+			}
+			if c.onRegistered != nil {
+				c.onRegistered(m.Domain)
+			}
 
 		case protocol.TypeRequest:
 			go c.handleRequest(&m)
@@ -100,9 +114,25 @@ func (c *Client) connect() error {
 			c.send(protocol.Message{Type: protocol.TypePong})
 
 		case protocol.TypePong:
-			// heartbeat ack
 		}
 	}
+}
+
+// Close shuts down the connection.
+func (c *Client) Close() {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if c.closed {
+		return
+	}
+	c.closed = true
+	if c.conn != nil {
+		c.conn.Close()
+	}
+}
+
+func (c *Client) cleanup() {
+	c.Close()
 }
 
 func (c *Client) heartbeat(done chan struct{}) {
@@ -131,7 +161,7 @@ func (c *Client) handleRequest(m *protocol.Message) {
 		body = bytes.NewReader(b)
 	}
 
-	url := fmt.Sprintf("http://localhost:%d%s", c.port, m.Path)
+	url := fmt.Sprintf("http://localhost:%d%s", c.Port, m.Path)
 	req, err := http.NewRequest(m.Method, url, body)
 	if err != nil {
 		c.sendResponse(m.ID, 500, nil, []byte(err.Error()))
@@ -179,5 +209,8 @@ func (c *Client) send(m protocol.Message) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if c.conn == nil {
+		return fmt.Errorf("not connected")
+	}
 	return c.conn.WriteMessage(websocket.TextMessage, data)
 }
