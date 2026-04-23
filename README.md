@@ -10,21 +10,23 @@
 
 ## 快速开始
 
-### 编译
+### 服务端部署（Docker Compose）
+
+在服务器上执行：
 
 ```bash
-make          # 构建 server 和 client（当前平台）
-make linux    # 交叉编译 linux/amd64
-make darwin   # 交叉编译 darwin/amd64 + darwin/arm64
+curl -fsSL git@github.com:Bacchusgift/go-tunnel/raw/main/deploy | bash
 ```
 
-### 服务端部署
+或手动：
 
 ```bash
-./server -addr :8080 -domain autowired.cn
+git clone git@github.com:Bacchusgift/go-tunnel.git /opt/go-tunnel
+cd /opt/go-tunnel
+docker compose up -d
 ```
 
-Nginx 配置参考：
+服务监听 `:8080`，Nginx 反代配置参考：
 
 ```nginx
 server {
@@ -48,17 +50,20 @@ server {
 
 ### 客户端使用
 
+**Docker 方式：**
 ```bash
 # 自动分配随机短码
-./client -port 3000
-# ✅ 隧道已建立: a3xk9m.autowired.cn → localhost:3000
+docker run --rm -p 3000:3000 ghcr.io/bacchusgift/go-tunnel-client -port 3000
 
 # 指定自定义前缀
-./client -prefix myapp -port 8080
-# ✅ 隧道已建立: myapp.autowired.cn → localhost:8080
+docker run --rm ghcr.io/bacchusgift/go-tunnel-client -port 3000 -prefix myapp
+```
 
-# 指定自定义服务端地址
-./client -port 3000 -server http://your-server.com/_tunnel/ws
+**本地编译：**
+```bash
+make build
+./bin/go-tunnel-client -port 3000
+# ✅ 隧道已建立: a3xk9m.autowired.cn → localhost:3000
 ```
 
 ## CLI 参数
@@ -78,9 +83,21 @@ server {
 | `-prefix` | 随机6位短码 | 域名前缀 |
 | `-server` | `http://proxy.autowired.cn/_tunnel/ws` | 服务端 WebSocket 地址 |
 
+## 常用命令
+
+```bash
+make              # 编译 server 和 client
+make docker-build # Docker 构建
+make docker-up    # Docker 启动
+make docker-down  # Docker 停止
+make docker-logs  # 查看日志
+make clean        # 清理编译产物
+```
+
 ## 特性
 
 - 单端口设计：控制通道和代理流量共用一个端口
+- Docker Compose 一键部署
 - 自动断线重连（5s 间隔）
 - 心跳保活（15s 间隔，60s 超时清理）
 - 请求超时（30s）

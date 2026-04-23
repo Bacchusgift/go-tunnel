@@ -1,0 +1,14 @@
+services:
+  tunnel-server:
+    build: .
+    container_name: go-tunnel-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    command: ["-addr", ":8080", "-domain", "autowired.cn"]
+    networks:
+      - tunnel-net
+
+networks:
+  tunnel-net:
+    driver: bridge
