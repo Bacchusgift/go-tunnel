@@ -4,8 +4,10 @@ services:
     container_name: go-tunnel-server
     restart: unless-stopped
     ports:
-      - "8080:8080"
-    command: ["-addr", ":8080", "-domain", "autowired.cn"]
+      - "${TUNNEL_PORT:-8080}:8080"
+    environment:
+      - TUNNEL_ADDR=:8080
+      - TUNNEL_DOMAIN=${TUNNEL_DOMAIN:?Please set TUNNEL_DOMAIN in .env}
     networks:
       - tunnel-net
 

@@ -18,18 +18,36 @@ if ! docker compose version &>/dev/null; then
     exit 1
 fi
 
-# 首次部署：克隆仓库
-if [ ! -d "$COMPOSE_DIR" ]; then
-    echo "📦 克隆仓库到 $COMPOSE_DIR ..."
-    git clone -b "$BRANCH" "$REPO_URL" "$COMPOSE_DIR"
-else
-    echo "📦 更新仓库 ..."
-    cd "$COMPOSE_DIR"
-    git fetch origin "$BRANCH"
-    git reset --hard "origin/$BRANCH"
+# 检查 .env 配置
+if [ ! -f "$COMPOSE_DIR/.env" ]; then
+    # 首次部署
+    if [ ! -d "$COMPOSE_DIR" ]; then
+        echo "📦 克隆仓库到 $COMPOSE_DIR ..."
+        git clone -b "$BRANCH" "$REPO_URL" "$COMPOSE_DIR"
+    fi
+
+    if [ ! -f "$COMPOSE_DIR/.env" ]; then
+        cp "$COMPOSE_DIR/.env.example" "$COMPOSE_DIR/.env"
+    fi
+
+    echo ""
+    echo "⚠️  首次部署，请编辑配置文件："
+    echo "   nano $COMPOSE_DIR/.env"
+    echo ""
+    echo "   至少设置 TUNNEL_DOMAIN（你的域名，如 example.com）"
+    echo ""
+    read -p "配置完成后按回车继续部署..." _
 fi
 
 cd "$COMPOSE_DIR"
+
+# 更新代码（非首次也支持）
+if [ "$1" = "--update" ] || git fetch origin "$BRANCH" 2>/dev/null; then
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/$BRANCH)" ]; then
+        echo "📦 更新代码 ..."
+        git pull origin "$BRANCH"
+    fi
+fi
 
 echo "🔨 构建镜像 ..."
 docker compose build --no-cache
@@ -40,9 +58,8 @@ docker compose up -d
 echo ""
 echo "✅ 部署完成!"
 echo ""
-echo "服务地址: http://127.0.0.1:8080"
-echo ""
 echo "常用命令:"
-echo "  查看日志: docker compose -f $COMPOSE_DIR/docker-compose.yml logs -f"
-echo "  停止服务: docker compose -f $COMPOSE_DIR/docker-compose.yml down"
-echo "  重启服务: docker compose -f $COMPOSE_DIR/docker-compose.yml restart"
+echo "  查看日志: cd $COMPOSE_DIR && docker compose logs -f"
+echo "  停止服务: cd $COMPOSE_DIR && docker compose down"
+echo "  重启服务: cd $COMPOSE_DIR && docker compose restart"
+echo "  更新部署: cd $COMPOSE_DIR && git pull && docker compose up -d --build"
