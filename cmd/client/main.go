@@ -29,6 +29,15 @@ type tunnelItem struct {
 	client *client.Client
 }
 
+// normalizeServerURL appends /_tunnel/ws if not already present
+func normalizeServerURL(raw string) string {
+	raw = strings.TrimRight(raw, "/")
+	if !strings.HasSuffix(raw, "/_tunnel/ws") {
+		raw += "/_tunnel/ws"
+	}
+	return raw
+}
+
 func main() {
 	// Load config
 	cfg := loadConfig()
@@ -37,11 +46,12 @@ func main() {
 	if cfg.ServerURL == "" {
 		fmt.Println("🔧 首次使用，请配置服务端地址")
 		fmt.Println()
-		cfg.ServerURL = inputString("🌐 服务端地址: ")
-		if cfg.ServerURL == "" {
+		raw := inputString("🌐 服务器地址 (如 http://proxy.autowired.cn): ")
+		if raw == "" {
 			fmt.Println("❌ 地址不能为空")
 			os.Exit(1)
 		}
+		cfg.ServerURL = normalizeServerURL(raw)
 		saveConfig(cfg)
 	}
 
@@ -185,14 +195,19 @@ func main() {
 
 		case "3":
 			fmt.Println()
-			fmt.Printf("当前地址: %s\n", cfg.ServerURL)
+			// 显示用户输入的原始地址（去掉路径）
+			displayURL := strings.TrimSuffix(cfg.ServerURL, "/_tunnel/ws")
+			fmt.Printf("当前地址: %s\n", displayURL)
 			fmt.Print("新地址 (直接回车=不修改): ")
 			newURL, _ := reader.ReadString('\n')
 			newURL = strings.TrimSpace(newURL)
-			if newURL != "" && newURL != cfg.ServerURL {
-				cfg.ServerURL = newURL
-				saveConfig(cfg)
-				fmt.Println("✅ 已保存")
+			if newURL != "" {
+				normalized := normalizeServerURL(newURL)
+				if normalized != cfg.ServerURL {
+					cfg.ServerURL = normalized
+					saveConfig(cfg)
+					fmt.Println("✅ 已保存")
+				}
 			}
 
 		case "0", "q", "quit":
