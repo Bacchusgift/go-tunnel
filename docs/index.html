@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>go-tunnel — 极简内网穿透工具</title>
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{
+            --bg:#0a0a0f;
+            --surface:#12121a;
+            --surface2:#1a1a28;
+            --border:#2a2a3a;
+            --text:#e4e4e7;
+            --text2:#9ca3af;
+            --accent:#6366f1;
+            --accent2:#818cf8;
+            --green:#22c55e;
+            --yellow:#eab308;
+            --pink:#ec4899;
+            --font:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            --mono:'JetBrains Mono',Fira Code,monospace;
+        }
+        html{scroll-behavior:smooth}
+        body{
+            font-family:var(--font);
+            background:var(--bg);
+            color:var(--text);
+            line-height:1.7;
+            overflow-x:hidden;
+        }
+        a{color:var(--accent2);text-decoration:none}
+        a:hover{color:#a5b4fc}
+
+        /* hero gradient blob */
+        .blob{
+            position:absolute;
+            border-radius:50%;
+            filter:blur(120px);
+            opacity:.15;
+            pointer-events:none;
+        }
+        .blob-1{width:600px;height:600px;background:var(--accent);top:-200px;left:-100px}
+        .blob-2{width:400px;height:400px;background:var(--pink);top:100px;right:-100px}
+        .blob-3{width:500px;height:500px;background:#06b6d4;bottom:-200px;left:30%}
+
+        /* nav */
+        nav{
+            position:fixed;top:0;left:0;right:0;z-index:100;
+            backdrop-filter:blur(20px);
+            background:rgba(10,10,15,.7);
+            border-bottom:1px solid var(--border);
+        }
+        nav .inner{
+            max-width:1100px;margin:0 auto;
+            padding:16px 24px;
+            display:flex;align-items:center;justify-content:space-between;
+        }
+        nav .logo{
+            font-size:20px;font-weight:700;
+            display:flex;align-items:center;gap:8px;
+        }
+        nav .logo span{
+            background:linear-gradient(135deg,var(--accent),var(--pink));
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+        }
+        nav .links{display:flex;gap:24px}
+        nav .links a{color:var(--text2);font-size:14px}
+        nav .links a:hover{color:var(--text)}
+
+        /* sections */
+        section{max-width:1100px;margin:0 auto;padding:0 24px}
+        .hero{
+            position:relative;
+            min-height:100vh;
+            display:flex;flex-direction:column;
+            align-items:center;justify-content:center;
+            text-align:center;
+            overflow:hidden;
+        }
+        .hero h1{
+            font-size:clamp(40px,6vw,72px);
+            font-weight:800;
+            line-height:1.1;
+            margin-bottom:24px;
+        }
+        .hero h1 .gradient{
+            background:linear-gradient(135deg,var(--accent),var(--pink),var(--yellow));
+            -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+        }
+        .hero p{
+            font-size:clamp(16px,2vw,20px);
+            color:var(--text2);
+            max-width:600px;
+            margin-bottom:40px;
+        }
+        .hero .badges{
+            display:flex;gap:12px;
+            margin-bottom:32px;
+            flex-wrap:wrap;
+            justify-content:center;
+        }
+        .badge{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:6px 14px;
+            border-radius:999px;
+            font-size:13px;
+            border:1px solid var(--border);
+            background:var(--surface);
+            color:var(--text2);
+        }
+        .badge .dot{
+            width:8px;height:8px;border-radius:50%;
+        }
+        .badge .dot.green{background:var(--green)}
+        .badge .dot.yellow{background:var(--yellow)}
+        .badge .dot.pink{background:var(--pink)}
+
+        .buttons{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+        .btn{
+            display:inline-flex;align-items:center;gap:8px;
+            padding:14px 28px;
+            border-radius:12px;
+            font-size:15px;
+            font-weight:600;
+            border:none;cursor:pointer;
+            transition:all .2s;
+        }
+        .btn-primary{
+            background:linear-gradient(135deg,var(--accent),#8b5cf6);
+            color:#fff;
+            box-shadow:0 0 30px rgba(99,102,241,.3);
+        }
+        .btn-primary:hover{
+            box-shadow:0 0 40px rgba(99,102,241,.5);
+            transform:translateY(-2px);
+        }
+        .btn-secondary{
+            background:var(--surface2);
+            color:var(--text);
+            border:1px solid var(--border);
+        }
+        .btn-secondary:hover{border-color:var(--accent);transform:translateY(-2px)}
+
+        /* features */
+        .features{padding:120px 0 80px}
+        .features h2{
+            font-size:36px;font-weight:700;
+            text-align:center;margin-bottom:16px;
+        }
+        .features .sub{
+            text-align:center;color:var(--text2);
+            margin-bottom:60px;
+        }
+        .grid{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:20px;
+        }
+        .card{
+            background:var(--surface);
+            border:1px solid var(--border);
+            border-radius:16px;
+            padding:32px;
+            transition:all .3s;
+        }
+        .card:hover{
+            border-color:var(--accent);
+            transform:translateY(-4px);
+            box-shadow:0 8px 30px rgba(0,0,0,.3);
+        }
+        .card .icon{
+            width:48px;height:48px;
+            border-radius:12px;
+            display:flex;align-items:center;justify-content:center;
+            font-size:24px;
+            margin-bottom:20px;
+            background:linear-gradient(135deg,var(--surface2),var(--surface));
+            border:1px solid var(--border);
+        }
+        .card h3{font-size:18px;margin-bottom:8px}
+        .card p{color:var(--text2);font-size:14px;line-height:1.6}
+
+        /* architecture */
+        .arch{padding:80px 0}
+        .arch h2{
+            font-size:36px;font-weight:700;
+            text-align:center;margin-bottom:16px;
+        }
+        .arch .sub{
+            text-align:center;color:var(--text2);
+            margin-bottom:48px;
+        }
+        .flow{
+            display:flex;align-items:center;justify-content:center;
+            gap:12px;
+            flex-wrap:wrap;
+            padding:40px 20px;
+            background:var(--surface);
+            border:1px solid var(--border);
+            border-radius:16px;
+            font-family:var(--mono);
+            font-size:clamp(12px,1.5vw,15px);
+            overflow-x:auto;
+        }
+        .flow-item{
+            padding:10px 18px;
+            border-radius:8px;
+            white-space:nowrap;
+            font-weight:500;
+        }
+        .flow-item.blue{background:rgba(99,102,241,.15);color:var(--accent2);border:1px solid rgba(99,102,241,.3)}
+        .flow-item.green{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+        .flow-item.pink{background:rgba(236,72,153,.1);color:var(--pink);border:1px solid rgba(236,72,153,.3)}
+        .flow-item.yellow{background:rgba(234,179,8,.1);color:var(--yellow);border:1px solid rgba(234,179,8,.3)}
+        .flow-arrow{color:var(--text2);font-size:18px}
+
+        /* usage */
+        .usage{padding:80px 0 120px}
+        .usage h2{
+            font-size:36px;font-weight:700;
+            text-align:center;margin-bottom:16px;
+        }
+        .usage .sub{
+            text-align:center;color:var(--text2);
+            margin-bottom:48px;
+        }
+        .steps{
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+            gap:20px;
+        }
+        .step{
+            background:var(--surface);
+            border:1px solid var(--border);
+            border-radius:16px;
+            padding:28px;
+        }
+        .step .num{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:32px;height:32px;
+            border-radius:8px;
+            font-size:14px;font-weight:700;
+            margin-bottom:16px;
+        }
+        .step:nth-child(1) .num{background:rgba(99,102,241,.15);color:var(--accent2)}
+        .step:nth-child(2) .num{background:rgba(34,197,94,.1);color:var(--green)}
+        .step:nth-child(3) .num{background:rgba(236,72,153,.1);color:var(--pink)}
+        .step h3{font-size:16px;margin-bottom:8px}
+        .step pre{
+            background:var(--bg);
+            border:1px solid var(--border);
+            border-radius:10px;
+            padding:16px;
+            font-family:var(--mono);
+            font-size:13px;
+            overflow-x:auto;
+            color:var(--text2);
+            line-height:1.8;
+        }
+        .step pre .cmd{color:var(--accent2)}
+        .step pre .str{color:var(--green)}
+        .step pre .comment{color:#555}
+
+        /* footer */
+        footer{
+            border-top:1px solid var(--border);
+            padding:32px 24px;
+            text-align:center;
+            color:var(--text2);
+            font-size:13px;
+        }
+
+        @media(max-width:640px){
+            nav .links{display:none}
+            .flow{flex-direction:column}
+            .flow-arrow{transform:rotate(90deg)}
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+    <div class="inner">
+        <div class="logo">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#g)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#ec4899"/></linearGradient></defs>
+                <path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><path d="M17 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/>
+            </svg>
+            <span>go-tunnel</span>
+        </div>
+        <div class="links">
+            <a href="#features">特性</a>
+            <a href="#arch">架构</a>
+            <a href="#usage">使用</a>
+            <a href="https://github.com/Bacchusgift/go-tunnel" target="_blank">GitHub</a>
+        </div>
+    </div>
+</nav>
+
+<section class="hero">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="badges">
+        <span class="badge"><span class="dot green"></span>Go 1.23</span>
+        <span class="badge"><span class="dot yellow"></span>WebSocket</span>
+        <span class="badge"><span class="dot pink"></span>MIT License</span>
+    </div>
+    <h1>极简<span class="gradient">内网穿透</span><br>工具</h1>
+    <p>一个命令，将你的本地服务暴露到公网。无需注册，无需安装 Node.js，单二进制文件，开箱即用。</p>
+    <div class="buttons">
+        <a class="btn btn-primary" href="https://github.com/Bacchusgift/go-tunnel/releases" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载最新版本
+        </a>
+        <a class="btn btn-secondary" href="https://github.com/Bacchusgift/go-tunnel" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+            GitHub
+        </a>
+    </div>
+</section>
+
+<section class="features" id="features">
+    <h2>为什么选择 go-tunnel</h2>
+    <p class="sub">简单、轻量、无依赖</p>
+    <div class="grid">
+        <div class="card">
+            <div class="icon">📦</div>
+            <h3>单文件部署</h3>
+            <p>编译产物只有一个二进制文件，无运行时依赖，拷贝即用。Docker 镜像仅 ~10MB。</p>
+        </div>
+        <div class="card">
+            <div class="icon">⚡</div>
+            <h3>开箱即用</h3>
+            <p>无需注册账号，无需配置鉴权。输入端口，回车，隧道就建立了。</p>
+        </div>
+        <div class="card">
+            <div class="icon">🔄</div>
+            <h3>交互式管理</h3>
+            <p>菜单式操作界面，支持同时管理多条隧道，创建和关闭都只需选个数字。</p>
+        </div>
+        <div class="card">
+            <div class="icon">🔒</div>
+            <h3>WebSocket 传输</h3>
+            <p>基于 WebSocket 双向通信，支持反向代理 HTTP/HTTPS 流量，兼容标准 Nginx。</p>
+        </div>
+        <div class="card">
+            <div class="icon">🐳</div>
+            <h3>Docker 一键部署</h3>
+            <p>服务端提供 Docker Compose 配置，deploy 脚本自动拉取、构建、启动。</p>
+        </div>
+        <div class="card">
+            <div class="icon">💻</div>
+            <h3>跨平台</h3>
+            <p>支持 Linux、macOS (Apple Silicon)、Windows。GitHub Actions 自动构建发布。</p>
+        </div>
+    </div>
+</section>
+
+<section class="arch" id="arch">
+    <h2>架构</h2>
+    <p class="sub">简洁的数据通路，一行搞定</p>
+    <div class="flow">
+        <span class="flow-item blue">🌐 用户请求</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item yellow">Nginx</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item green">go-tunnel 服务端</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item pink">WebSocket 隧道</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item blue">localhost:{port}</span>
+    </div>
+</section>
+
+<section class="usage" id="usage">
+    <h2>快速开始</h2>
+    <p class="sub">三步完成部署和使用</p>
+    <div class="steps">
+        <div class="step">
+            <div class="num">1</div>
+            <h3>部署服务端</h3>
+            <pre><span class="comment"># 克隆仓库</span>
+<span class="cmd">git clone</span> git@github.com:Bacchusgift/go-tunnel.git
+<span class="cmd">cd</span> go-tunnel
+
+<span class="comment"># 配置域名</span>
+<span class="cmd">cp</span> .env.example .env
+<span class="comment"># 编辑 TUNNEL_DOMAIN</span>
+
+<span class="comment"># 启动</span>
+<span class="cmd">./deploy</span></pre>
+        </div>
+        <div class="step">
+            <div class="num">2</div>
+            <h3>下载客户端</h3>
+            <pre><span class="comment"># macOS / Linux / Windows</span>
+<span class="cmd">go install</span> github.com/Bacchusgift/go-tunnel/cmd/client@latest
+
+<span class="comment"># 或从 Release 页下载</span>
+<span class="str">github.com/Bacchusgift/go-tunnel/releases</span></pre>
+        </div>
+        <div class="step">
+            <div class="num">3</div>
+            <h3>创建隧道</h3>
+            <pre><span class="cmd">$ ./tunnel-client</span>
+
+🌐 服务器地址: <span class="str">http://tunnel.example.com</span>
+
+━━━ go-tunnel ━━━
+  [1] 创建隧道
+  [2] 关闭隧道
+  [0] 退出
+
+选择: <span class="cmd">1</span>
+✅ <span class="str">a3xk9m.example.com</span> → localhost:3000</pre>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <p>go-tunnel &copy; 2025 · Built with Go · <a href="https://github.com/Bacchusgift/go-tunnel">GitHub</a></p>
+</footer>
+
+</body>
+</html>
